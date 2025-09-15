@@ -99,7 +99,10 @@ if "NFCI" in liq.columns:
     if not _lvl.empty:
         lvl_text = f"Nivel: {_lvl.iloc[-1]:+.2f}"
 
-metric_box(c2, "NFCI (z 52s)", z_val if z_val is not None else float("nan"), help_txt=lvl_text)
+z_col   = "NFCI_z" if "NFCI_z" in liq.columns and liq["NFCI_z"].notna().any() else ("NFCI" if "NFCI" in liq.columns and liq["NFCI"].notna().any() else None)
+metric_box(c2, "NFCI (z 52s)", last_value(liq[z_col]) if z_col else float("nan"))
+if "NFCI" in liq.columns and liq["NFCI"].notna().any():
+    st.caption(f"NFCI nivel: {last_value(liq['NFCI']):+.2f}")
 metric_box(c3, "HY OAS (bps, z)", last_value(cred["HY_OAS_bps"]))
 metric_box(c4, "EFFR-EMA13w (z)", last_value(liq["EFFR_chg_13w"]))
 metric_box(c5, "INDPRO YoY (z)", last_value(act["INDPRO"]))
