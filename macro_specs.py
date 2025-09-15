@@ -33,8 +33,13 @@ def build_default_specs(target_freq: str = "W-FRI", z_win: int = 52) -> Dict[str
             SeriesSpec(fred_id="EFFR", alias="EFFR", units="pp_from_percent", freq_objetivo="D", agg="last"),
             SeriesSpec(fred_id="NFCI", alias="NFCI", units="level", freq_objetivo="W-FRI", agg="last"),
         ],
-        derived=[TransformStep(fn="expr", arg={"name":"EFFR_chg_13w", "expr":"EFFR - EFFR.rolling(13).mean()"})],
-        post=[TransformStep(fn="zscore", arg={"cols":["EFFR_chg_13w","NFCI"], "window": z_win})],
+        derived=[
+            TransformStep(fn="expr", arg={"name":"EFFR_chg_13w", "expr":"EFFR - EFFR.rolling(13).mean()"}),
+            TransformStep(fn="expr", arg={"name":"NFCI_level", "expr":"NFCI"}),  # <-- copia el nivel crudo
+        ],
+        post=[
+            TransformStep(fn="zscore", arg={"cols":["EFFR_chg_13w","NFCI"], "window": z_win}),
+        ],
     )
 
     cred_spec = LayerSpec(
