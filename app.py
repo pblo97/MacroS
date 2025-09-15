@@ -109,10 +109,63 @@ if "NFCI" in liq.columns:
     if not _lvl.empty:
         lvl_text = f"Nivel: {_lvl.iloc[-1]:+.2f}"
 
-z_col = "NFCI_z" if ("NFCI_z" in liq.columns and liq["NFCI_z"].notna().any()) else ("NFCI" if ("NFCI" in liq.columns and liq["NFCI"].notna().any()) else None)
-metric_box(c2, "NFCI (z 52s)", last_value(liq[z_col]) if z_col else float("nan"))
-if "NFCI" in liq.columns and liq["NFCI"].notna().any():
-    st.caption(f"NFCI nivel: {last_value(liq['NFCI']):+.2f}")
+def _nfci_view(layers_dict, freq_out, dmin, dmax, z_win=52):
+    """Devuelve un DF con columnas NFCI (nivel) y NFCI_z, venga o no en la capa."""
+    liq = layers_dict.get("Liquidity")
+    df = None
+
+    # 1) intenta tomar de la capa Liquidity lo que exista
+    if liq is not None and isinstance(liq, pd.DataFrame):
+        cols = [c for c in ["NFCI", "NFCI_level", "NFCI_z"] if c in liq.columns]
+        if cols:
+            df = liq[cols].copy()
+
+    # 2) si no hay nada útil, baja NFCI directo de FRED
+    if df is None or df.dropna(how="all").empty:
+        raw = DataLoad().get_one("NFCI")              # nivel
+        raw = raw.asfreq("W-FRI").ffill()             # grilla semanal (viernes)
+        raw["NFCI_z"] = (raw["NFCI"] - raw["NFCI"].rolling(z_win).mean()) / raw["NFCI"].rolling(z_win).std()
+        df = raw
+
+    # 3) recorte por fechas
+    df = df.loc[pd.to_datetime(dmin):pd.to_datetime(dmax)]
+
+    # 4) remuestreo SOLO para vista
+    if freq_out in ("M", "ME"):
+        df = df.resample("ME").last()
+    elif freq_out != "W-FRI":
+        df = df.resample(freq_out).last()
+
+    # asegura columnas estándar
+    if "NFCI" not in df.columns and "NFCI_level" in df.columns:
+        df["NFCI"] = df["NFCI_level"]
+
+    return df[["NFCI"]] if "NFCI_z" not in df.columns else df[["NFCI", "NFCI_z"]]
+
+# construye la vista segura
+nfci_df = _nfci_view(layers, freq, date_min, date_max, z_window)
+
+# valor z si existe, sino NaN
+z_val = float("nan")
+if "NFCI_z" in nfci_df.columns:
+    _z = nfci_df["NFCI_z"].dropna()
+    if not _z.empty:
+        z_val = _z.iloc[-1]
+
+# valor de nivel (caption)
+lvl_caption = None
+if "NFCI" in nfci_df.columns:
+    _lvl = nfci_df["NFCI"].dropna()
+    if not _lvl.empty:
+        lvl_caption = f"NFCI nivel: {_lvl.iloc[-1]:+.2f}"
+
+metric_box(c2, "NFCI (z 52s)", z_val)
+if lvl_caption:
+    st.caption(lvl_caption)
+
+# si tu capa Liquidity venía vacía, al menos que el tab tenga algo
+if "Liquidity" not in layers or layers["Liquidity"].dropna(how="all", axis=1).empty:
+    layers["Liquidity"] = nfci_df
 metric_box(c3, "HY OAS (bps, z)", last_value(cred["HY_OAS_bps"]))
 metric_box(c4, "EFFR-EMA13w (z)", last_value(liq["EFFR_chg_13w"]))
 metric_box(c5, "INDPRO YoY (z)", last_value(act["INDPRO"]))
