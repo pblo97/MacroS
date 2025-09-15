@@ -59,6 +59,16 @@ def build_layers(freq: str, z_win: int, dmin: pd.Timestamp, dmax: pd.Timestamp):
 
 layers = build_layers(freq, z_window, date_min, date_max)
 
+liq = layers.get("Liquidity")
+need_nfci = (liq is None) or (("NFCI" not in liq.columns) and ("NFCI_z" not in liq.columns))
+if need_nfci:
+    st.warning("Liquidity sin NFCI; descargando NFCI directo (fallback).")
+    nfci = DataLoad().get_one("NFCI").asfreq("W-FRI").ffill()
+    nfci["NFCI_z"] = (nfci["NFCI"] - nfci["NFCI"].rolling(52).mean()) / nfci["NFCI"].rolling(52).std()
+    nfci = nfci.loc[pd.to_datetime(date_min):pd.to_datetime(date_max)]
+    layers["Liquidity"] = nfci if liq is None else pd.concat([liq, nfci], axis=1)
+liq = layers["Liquidity"]
+
 # --- utilidades ---
 def last_value(s: pd.Series):
     s2 = s.dropna()
