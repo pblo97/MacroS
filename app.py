@@ -74,6 +74,8 @@ def metric_box(col, label: str, value, help_txt=None):
         st.metric(label, value=None if pd.isna(value) else f"{value:,.2f}")
         if help_txt: st.caption(help_txt)
 
+
+
 st.title("Macro Monitor")
 
 # tarjetas
@@ -85,7 +87,19 @@ act = layers["Activity"]
 inf = layers["Inflation"]
 
 metric_box(c1, "YC 10–2 (pp)", last_value(yc["YC_10_2_pp"]))
-metric_box(c2, "NFCI (z)", last_value(liq["NFCI"]))
+z_val = None
+if "NFCI_z" in liq.columns:
+    _z = liq["NFCI_z"].dropna()
+    if not _z.empty:
+        z_val = _z.iloc[-1]
+
+lvl_text = None
+if "NFCI" in liq.columns:
+    _lvl = liq["NFCI"].dropna()
+    if not _lvl.empty:
+        lvl_text = f"Nivel: {_lvl.iloc[-1]:+.2f}"
+
+metric_box(c2, "NFCI (z 52s)", z_val if z_val is not None else float("nan"), help_txt=lvl_text)
 metric_box(c3, "HY OAS (bps, z)", last_value(cred["HY_OAS_bps"]))
 metric_box(c4, "EFFR-EMA13w (z)", last_value(liq["EFFR_chg_13w"]))
 metric_box(c5, "INDPRO YoY (z)", last_value(act["INDPRO"]))
