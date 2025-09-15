@@ -108,6 +108,7 @@ if "NFCI" in liq.columns:
     _lvl = liq["NFCI"].dropna()
     if not _lvl.empty:
         lvl_text = f"Nivel: {_lvl.iloc[-1]:+.2f}"
+st.write("Cols Liquidity actuales:", list(layers.get("Liquidity", pd.DataFrame()).columns))
 
 def _nfci_view(layers_dict, freq_out, dmin, dmax, z_win=52):
     """Devuelve un DF con columnas NFCI (nivel) y NFCI_z, venga o no en la capa."""
