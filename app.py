@@ -6,8 +6,14 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 
-from macro_core import DataLoad, DataTransform, LayerBuilder
+from macro_core import DataLoad, DataTransform, LayerBuilder, SeriesSpec
 from macro_specs import build_default_specs
+
+import os, streamlit as st
+
+# Carga el secret y lo exporta como variable de entorno
+if "FRED_API_KEY" in st.secrets:
+    os.environ["FRED_API_KEY"] = st.secrets["FRED_API_KEY"]
 
 st.set_page_config(page_title="Macro Monitor", layout="wide")
 
@@ -23,11 +29,32 @@ def build_layers(freq: str, z_win: int, dmin: pd.Timestamp, dmax: pd.Timestamp):
     T = DataTransform()
     L = LayerBuilder(loader=DataLoad(), T=T)
 
-    specs = build_default_specs(target_freq=freq, z_win=z_win)
-    layers = {}
+    specs = build_default_specs(target_freq=freq, z_win=z_window)
+
+    # ----- Liquidity con fallback -----
+    liq_df = L.build(specs["Liquidity"])
+    need_fallback = ("NFCI" not in liq_df.columns) or liq_df["NFCI"].dropna().empty
+    if need_fallback:
+        st.warning("NFCI vacío; usando ANFCI (Adjusted NFCI) como fallback.")
+        liq_alt = specs["Liquidity"]
+        liq_alt.series = [
+            s if s.alias != "NFCI" else SeriesSpec(
+                fred_id="ANFCI", alias="NFCI", units="level", freq_objetivo="W-MON", agg="last"
+            )
+            for s in liq_alt.series
+        ]
+        liq_df = L.build(liq_alt)
+
+    layers = {"Liquidity": liq_df}
+    # Resto de capas
     for name, spec in specs.items():
-        df = L.build(spec)
-        layers[name] = df.loc[pd.to_datetime(dmin):pd.to_datetime(dmax)]
+        if name == "Liquidity":
+            continue
+        layers[name] = L.build(spec)
+
+    # Recorte por fechas
+    for k in layers:
+        layers[k] = layers[k].loc[pd.to_datetime(dmin):pd.to_datetime(dmax)]
     return layers
 
 layers = build_layers(freq, z_window, date_min, date_max)
